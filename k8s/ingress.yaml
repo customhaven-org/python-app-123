@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: python-app-123
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "python-app-123-dev.test.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: python-app-123
+            port:
+              number: 8081

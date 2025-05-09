@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-app-123
+  labels:
+    app: python-app-123
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: python-app-123
+  template:
+    metadata:
+      labels:
+        app: python-app-123
+    spec:
+      containers:
+      - name: python-app-123
+        image: customhaven/python-app-123:latest
+        ports:
+        - containerPort: 5000
