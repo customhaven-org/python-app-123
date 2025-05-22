@@ -1,0 +1,97 @@
+name: python-app-123-cicd
+
+on:
+  push:
+    paths:
+      - src/**
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Shorten commit ID
+        shell: bash
+        run: |
+          echo "COMMIT_ID=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+      -
+        name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      -
+        name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: customhaven/python-app-123:${{ env.COMMIT_ID }}
+    outputs:
+      commit_id: ${{ env.COMMIT_ID }}
+  cd:
+    runs-on: self-hosted
+    needs: ci
+    steps:
+      - uses: actions/checkout@v3
+      -
+        name: Install yq
+        shell: bash
+        run: |
+          pip install yq
+      -
+        name: Modify values file
+        shell: bash
+        run: |
+          echo ${{ needs.ci.outputs.commit_id }}
+          yq -Yi '.image.tag = "${{ needs.ci.outputs.commit_id }}"' charts/python-app-123/values-dev.yaml
+      - 
+        name: Commit changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: 'Updates values.yaml with commit ${{ needs.ci.outputs.commit_id }}'
+      -
+        name: Install ArgoCD
+        shell: bash
+        run: |
+          curl -ksSL -o argocd-linux-amd64 https://${{ vars.ARGO_SERVER }}/download/argocd-linux-amd64
+          chmod +x argocd-linux-amd64
+          sudo mv argocd-linux-amd64 /usr/local/bin/argocd
+      -
+        name: Login to ArgoCD
+        shell: bash
+        run: |
+          argocd login ${{ vars.ARGO_SERVER }} \
+            --insecure \
+            --grpc-web \
+            --username ${{ vars.ARGO_USER }} \
+            --password ${{ secrets.ARGO_PASS }}
+      -
+        name: Ensure ArgoCD repo is connected
+        shell: bash
+        run: |
+          repository="https://github.com/customhaven-org/python-app-123.git"
+          argocd repo list \
+          | grep -q $repository || \
+          argocd repo add $repository
+      -
+        name: Ensure ArgoCD App is created
+        shell: bash
+        run: |
+          argocd app get python-app-123 || \
+          argocd app create python-app-123 \
+            --repo https://github.com/customhaven-org/python-app-123.git \
+            --path charts/python-app-123 \
+            --dest-namespace dev \
+            --dest-server https://kubernetes.default.svc \
+            --values values-dev.yaml \
+            --revision main \
+            --sync-policy none \
+            --sync-option CreateNamespace=true
+      -
+        name: Sync ArgoCD App
+        shell: bash
+        run: | 
+          argocd app sync python-app-123
+          argocd app wait python-app-123 --timeout 180

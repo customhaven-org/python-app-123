@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: python-app-123
+  description: Python App that displays time - named python-app-123
+  annotations:
+    github.com/project-slug: customhaven-org/python-app-123
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: service
+  owner: development
+  lifecycle: experimental
